@@ -1,0 +1,22 @@
+[package]
+name = "oht"
+version = "0.1.0"
+edition = "2021"
+description = "Oblivious 2-tier hash table"
+authors = ["myl7 <myl@myl.moe>"]
+documentation = "https://github.com/myl7/oht#readme"
+homepage = "https://github.com/myl7/oht"
+repository = "https://github.com/myl7/oht.git"
+license = "Apache-2.0"
+keywords = ["crypto", "oblivious", "hash-table", "enclave"]
+categories = ["cryptography"]
+
+[features]
+gpl = []
+avx2 = []
+
+[dependencies]
+cxx = { version = "1.0.114", features = ["c++20"] }
+
+[build-dependencies]
+cxx-build = { version = "1.0.114", features = ["parallel"] }
