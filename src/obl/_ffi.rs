@@ -11,9 +11,14 @@ mod ffi {
 
     extern "Rust" {}
 
-    extern "C++" {
+    unsafe extern "C++" {
         include!("oht/src/obl/mod.h");
 
-        unsafe fn osort(vec: &mut [Elem], cmp: fn(&Elem, &Elem) -> bool, jobs: usize);
+        fn osort(vec: &mut [Elem], cmp: fn(&Elem, &Elem) -> bool, jobs: usize);
+        fn olt(a: u32, b: u32) -> bool;
+        fn ogt(a: u32, b: u32) -> bool;
+        fn oeq(a: u32, b: u32) -> bool;
+        fn ochoose_u32(pred: bool, a: u32, b: u32) -> u32;
+        fn ochoose_bool(pred: bool, a: bool, b: bool) -> bool;
     }
 }

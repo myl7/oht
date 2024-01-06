@@ -22,7 +22,7 @@ mod tests {
         vec[0].key[0] = 3;
         vec[1].key[0] = 2;
         vec[2].key[0] = 1;
-        unsafe { osort(&mut vec, |a, b| a.key[0] < b.key[0], 1) };
+        osort(&mut vec, |a, b| a.key[0] < b.key[0], 1);
         assert_eq!(vec.len(), 3);
         assert_eq!(vec[0].key[0], 1);
         assert_eq!(vec[1].key[0], 2);
