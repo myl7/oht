@@ -11,8 +11,10 @@ pub use obl::Elem;
 /// As a 2-tier hash table, `h1` is for the 1st tier and `h2` is for the 2nd tier.
 /// Every tier is some bins, which an index can be used to lookup the bin.
 pub struct Oht {
-    bins: Vec<Elem>,
-    overflow: Vec<Elem>,
+    /// `$H_1$`. The 1st tier OHT. Built first.
+    bins1: Vec<Elem>,
+    /// `$H_2$`. The 2nd tier OHT. Built second.
+    bins2: Vec<Elem>,
     b: u16,
     z: usize,
 }
@@ -21,26 +23,52 @@ impl Oht {
     /// See [`self`] for the meaning of `b` and `z`
     pub fn new(b: u16, z: usize) -> Oht {
         Oht {
-            bins: vec![],
-            overflow: vec![],
+            bins1: vec![],
+            bins2: vec![],
             b,
             z,
         }
     }
 
     pub fn clear(&mut self) {
-        self.bins.clear();
-        self.overflow.clear();
+        self.bins1.clear();
+        self.bins2.clear();
     }
 
+    /// `$Build(1^{\lambda}, \{(k_i, v_i)|dummy\}_{i \in [n]})$`.
+    /// Build the OHT from the given elements.
     pub fn build(&mut self, elems: impl IntoIterator<Item = Elem>, prf_key: &[u8], jobs: usize) {
-        self.clear();
+        let mut prf_key_buf = [&[0], prf_key].concat();
 
+        prf_key_buf[0] = 1;
+        let (bins, overflow_opt) = self.build_pass(elems, &prf_key_buf, jobs, true);
+        self.bins1 = bins;
+        let overflow = overflow_opt.unwrap();
+
+        prf_key_buf[0] = 2;
+        let (bins, _) = self.build_pass(overflow, &prf_key_buf, jobs, false);
+        self.bins2 = bins;
+    }
+
+    /// Returns the bins and overflow pile.
+    /// If `collect_overflow` is `false`, the overflow pile is always `None`, otherwise returned.
+    pub fn build_pass(
+        &self,
+        elems: impl IntoIterator<Item = Elem>,
+        prf_key: &[u8],
+        jobs: usize,
+        collect_overflow: bool,
+    ) -> (Vec<Elem>, Option<Vec<Elem>>) {
+        let mut bins = vec![];
+
+        // Assign bin index
         for mut elem in elems {
-            let bin_idx = crypto::prf_pow2(prf_key, &elem.key, self.b);
+            let bin_idx = crypto::prf_int(prf_key, &elem.key, self.b);
             elem.tag &= (bin_idx as u32) << 16;
-            self.bins.push(elem);
+            bins.push(elem);
         }
+
+        // Add fillers
         (0..self.b).for_each(|i| {
             let filler = Elem {
                 key: crypto::prf(prf_key, &i.to_le_bytes()),
@@ -48,11 +76,13 @@ impl Oht {
                 tag: ((i as u32) << 16) | TAG_FILLER,
             };
             (0..self.z).for_each(|_| {
-                self.bins.push(filler.clone());
+                bins.push(filler.clone());
             });
         });
+
+        // 1st osort to bins with fillers in the back of the bin.
         obl::osort(
-            &mut self.bins,
+            &mut bins,
             |a, b| {
                 let a_id = (a.tag & TAG_BIN_IDX) | (a.tag & TAG_FILLER);
                 let b_id = (b.tag & TAG_BIN_IDX) | (b.tag & TAG_FILLER);
@@ -60,18 +90,26 @@ impl Oht {
             },
             jobs,
         );
-        let mut bin_elem_num = vec![0; self.b as usize];
-        for elem in self.bins.iter_mut() {
-            let bin_idx = ((elem.tag & TAG_BIN_IDX) >> TAG_BIN_IDX.trailing_zeros()) as usize;
-            bin_elem_num[bin_idx] += 1;
+
+        // Assign excess
+        let mut bin_elem_num = 0;
+        let mut last_bin_idx = 0;
+        for elem in bins.iter_mut() {
+            let bin_idx = (elem.tag & TAG_BIN_IDX) >> TAG_BIN_IDX.trailing_zeros();
+            bin_elem_num = obl::ochoose_u32(obl::oeq(last_bin_idx, bin_idx), bin_elem_num + 1, 1);
+            last_bin_idx = bin_idx;
             elem.tag = obl::ochoose_u32(
-                obl::ogt(bin_elem_num[bin_idx], self.z as u32),
+                obl::ogt(bin_elem_num, self.z as u32),
                 elem.tag & TAG_EXCESS,
                 elem.tag,
             );
         }
+
+        // 2nd osort to bins with the equal size `z` and a overflow pile.
+        // In the overflow pile, `(k, v)`/dummy are in front of fillers.
+        // Not sure whether it is required for the overflow pile, but we take it since it does not cost much.
         obl::osort(
-            &mut self.bins,
+            &mut bins,
             |a, b| {
                 let a_id1 = ((a.tag & TAG_DUMMY) >> TAG_DUMMY.trailing_zeros() << 1)
                     | ((a.tag & TAG_EXCESS) >> TAG_EXCESS.trailing_zeros());
@@ -89,15 +127,14 @@ impl Oht {
             },
             jobs,
         );
-        for elem in self
-            .bins
-            .splice((self.b as usize * self.z)..self.bins.len(), [])
-        {
-            if self.overflow.len() < self.b as usize * self.z {
-                self.overflow.push(elem);
-            } else {
-                panic!("overflow");
-            }
+
+        // Separate bins and the overflow pile
+        if collect_overflow {
+            let overflow = bins.split_off(self.b as usize * self.z);
+            (bins, Some(overflow))
+        } else {
+            bins.truncate(self.b as usize * self.z);
+            (bins, None)
         }
     }
 }

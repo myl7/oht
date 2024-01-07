@@ -1,11 +1,14 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+//! `n` is the elem num. See [`oht`] for `b` and `z`.
+
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use oht::{Elem, Oht};
 use rand::prelude::*;
 
 const PRF_KEY: &[u8; 32] = b"01234567890123456789012345678901";
 
 pub fn bench(c: &mut Criterion) {
-    let elems = (0..100_000).map(|i| {
+    let n = 100_000;
+    let elems = (0..n).map(|i| {
         let mut elem = Elem {
             key: [0; 32],
             val: [0; 256],
@@ -22,13 +25,18 @@ pub fn bench(c: &mut Criterion) {
         thread_rng().fill_bytes(&mut elem.val);
         elem
     });
-
-    c.bench_function("oht build 100k elems", |b| {
-        b.iter(|| {
-            let mut oht = Oht::new(4, 25_000);
-            oht.build(elems.clone(), PRF_KEY, 1);
-        })
-    });
+    let z = (5f64 * 3.27).ceil() as usize;
+    let b = ((n as f64) / 3.27).ceil() as u16;
+    c.bench_with_input(
+        BenchmarkId::new("oht build n=100k", format!("b={b} z={z}")),
+        &(b, z),
+        |bencher, &(b, z)| {
+            bencher.iter(|| {
+                let mut oht = Oht::new(b, z);
+                oht.build(elems.clone(), PRF_KEY, 10);
+            })
+        },
+    );
 }
 
 criterion_group! {
