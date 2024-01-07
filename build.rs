@@ -20,6 +20,7 @@ fn main() {
     cc_build.include(concat!(env!("CARGO_MANIFEST_DIR"), "/include"));
     cc_build
         .cpp(true)
+        .std("c++20")
         .file("src/obl/mod.cpp")
         .file("src/obl/par_obl_primitives.cpp")
         .compile("obl");
