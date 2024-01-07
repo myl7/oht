@@ -4,7 +4,7 @@
 //! `n` is the elem num. See [`oht`] for `b` and `z`.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use oht::{Elem, Oht};
+use oht::{Elem, Oht, KEY_SIZE, VAL_SIZE};
 use rand::prelude::*;
 
 const PRF_KEY: &[u8; 32] = b"01234567890123456789012345678901";
@@ -13,8 +13,8 @@ pub fn bench(c: &mut Criterion) {
     let n = 100_000;
     let elems = (0..n).map(|i| {
         let mut elem = Elem {
-            key: [0; 32],
-            val: [0; 256],
+            key: [0; KEY_SIZE],
+            val: [0; VAL_SIZE],
             tag: 0,
         };
         (i as u32)

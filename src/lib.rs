@@ -6,15 +6,17 @@
 mod crypto;
 mod obl;
 
-pub use obl::Elem;
+pub use obl::tag::TAG_DUMMY;
+use obl::tag::*;
+pub use obl::{Elem, KEY_SIZE, VAL_SIZE};
 
 /// As a 2-tier hash table, `h1` is for the 1st tier and `h2` is for the 2nd tier.
 /// Every tier is some bins, which an index can be used to lookup the bin.
 pub struct Oht {
     /// `$H_1$`. The 1st tier OHT. Built first.
-    bins1: Vec<Elem>,
+    pub bins1: Vec<Elem>,
     /// `$H_2$`. The 2nd tier OHT. Built second.
-    bins2: Vec<Elem>,
+    pub bins2: Vec<Elem>,
     b: u16,
     z: usize,
 }
@@ -37,21 +39,28 @@ impl Oht {
 
     /// `$Build(1^{\lambda}, \{(k_i, v_i)|dummy\}_{i \in [n]})$`.
     /// Build the OHT from the given elements.
+    /// This does not do encryption, so do it after calling this.
     pub fn build(&mut self, elems: impl IntoIterator<Item = Elem>, prf_key: &[u8], jobs: usize) {
         let mut prf_key_buf = [&[0], prf_key].concat();
 
         prf_key_buf[0] = 1;
         let (bins, overflow_opt) = self.build_pass(elems, &prf_key_buf, jobs, true);
         self.bins1 = bins;
-        let overflow = overflow_opt.unwrap();
+
+        let mut overflow = overflow_opt.unwrap();
+        for elem in overflow.iter_mut() {
+            elem.tag &= !TAG_EXCESS;
+        }
 
         prf_key_buf[0] = 2;
         let (bins, _) = self.build_pass(overflow, &prf_key_buf, jobs, false);
         self.bins2 = bins;
     }
 
+    /// Build pass executed twice in one build.
+    /// Exported to ease utilization.
     /// Returns the bins and overflow pile.
-    /// If `collect_overflow` is `false`, the overflow pile is always `None`, otherwise returned.
+    /// If `collect_overflow` is false, the overflow pile is always `None` (dropped), otherwise returned.
     pub fn build_pass(
         &self,
         elems: impl IntoIterator<Item = Elem>,
@@ -64,7 +73,7 @@ impl Oht {
         // Assign bin index
         for mut elem in elems {
             let bin_idx = crypto::prf_int(prf_key, &elem.key, self.b);
-            elem.tag &= (bin_idx as u32) << 16;
+            elem.tag = elem.tag | ((bin_idx as u32) << TAG_BIN_IDX.trailing_zeros());
             bins.push(elem);
         }
 
@@ -73,7 +82,7 @@ impl Oht {
             let filler = Elem {
                 key: crypto::prf(prf_key, &i.to_le_bytes()),
                 val: [0; 256],
-                tag: ((i as u32) << 16) | TAG_FILLER,
+                tag: ((i as u32) << TAG_BIN_IDX.trailing_zeros()) | TAG_FILLER,
             };
             (0..self.z).for_each(|_| {
                 bins.push(filler.clone());
@@ -84,8 +93,9 @@ impl Oht {
         obl::osort(
             &mut bins,
             |a, b| {
-                let a_id = (a.tag & TAG_BIN_IDX) | (a.tag & TAG_FILLER);
-                let b_id = (b.tag & TAG_BIN_IDX) | (b.tag & TAG_FILLER);
+                // Tag bit positions are considered
+                let a_id = a.tag & (TAG_BIN_IDX | TAG_FILLER);
+                let b_id = b.tag & (TAG_BIN_IDX | TAG_FILLER);
                 obl::olt(a_id, b_id)
             },
             jobs,
@@ -100,7 +110,7 @@ impl Oht {
             last_bin_idx = bin_idx;
             elem.tag = obl::ochoose_u32(
                 obl::ogt(bin_elem_num, self.z as u32),
-                elem.tag & TAG_EXCESS,
+                elem.tag | TAG_EXCESS,
                 elem.tag,
             );
         }
@@ -111,6 +121,7 @@ impl Oht {
         obl::osort(
             &mut bins,
             |a, b| {
+                // Tag bit positions are considered
                 let a_id1 = ((a.tag & TAG_DUMMY) >> TAG_DUMMY.trailing_zeros() << 1)
                     | ((a.tag & TAG_EXCESS) >> TAG_EXCESS.trailing_zeros());
                 let b_id1 = ((b.tag & TAG_DUMMY) >> TAG_DUMMY.trailing_zeros() << 1)
@@ -137,12 +148,54 @@ impl Oht {
             (bins, None)
         }
     }
-}
 
-pub const TAG_DUMMY: u32 = 1 << 0;
-const TAG_FILLER: u32 = 1 << 1;
-const TAG_EXCESS: u32 = 1 << 2;
-const TAG_BIN_IDX: u32 = 0xffff << 16;
+    /// `$Lookup(T, k)$`.
+    /// Lookup a key in the OHT.
+    /// We reuse `val` field in `Elem` `query` to get the null value.
+    /// Returns whether found and the found value (null when all not found or dummy).
+    /// This does not do decryption, so do it before calling this.
+    pub fn lookup(&self, query: Elem, prf_key: &[u8]) -> (bool, [u8; VAL_SIZE]) {
+        let key = &query.key;
+        let null_val = &query.val;
+        let mut prf_key_buf = [&[0], prf_key].concat();
+
+        prf_key_buf[0] = 1;
+        let bins1_bin_idx = crypto::prf_int(&prf_key_buf, key, self.b);
+        let bins1_bin_start = bins1_bin_idx as usize * self.z;
+        let bins1_range = &self.bins1[bins1_bin_start..bins1_bin_start + self.z];
+        let (bins1_found, bins1_val) = self.lookup_bin(bins1_range, &query);
+
+        prf_key_buf[0] = 2;
+        let bins2_bin_idx = crypto::prf_int(&prf_key_buf, key, self.b);
+        let bins2_bin_start = bins2_bin_idx as usize * self.z;
+        let bins2_range = &self.bins2[bins2_bin_start..bins2_bin_start + self.z];
+        let (bins2_found, bins2_val) = self.lookup_bin(bins2_range, &query);
+
+        let found = bins1_found | bins2_found;
+        let val = *null_val;
+        let val = obl::ochoose_val(bins2_found, bins2_val, val);
+        let val = obl::ochoose_val(bins1_found, bins1_val, val);
+        let query_dummy = obl::ogt(query.tag & TAG_DUMMY, 0);
+        let val = obl::ochoose_val(query_dummy, *null_val, val);
+        (found, val)
+    }
+
+    /// Exported to ease utilization.
+    /// See [`Self::lookup`] for the null value, `query`, and returned values.
+    pub fn lookup_bin(&self, bin_range: &[Elem], query: &Elem) -> (bool, [u8; VAL_SIZE]) {
+        let mut found = false;
+        let null_val = &query.val;
+        let mut val = *null_val;
+        for elem in bin_range.iter() {
+            let key_eq = obl::oeq_key(elem.key, query.key);
+            let elem_dummy = obl::ogt(elem.tag & TAG_DUMMY, 0);
+            let elem_filler = obl::ogt(elem.tag & TAG_FILLER, 0);
+            found |= key_eq & !elem_dummy & !elem_filler;
+            val = obl::ochoose_val(found, val, *null_val);
+        }
+        (found, val)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -150,13 +203,35 @@ mod tests {
 
     const PRF_KEY: &[u8; 32] = b"01234567890123456789012345678901";
 
+    fn check_bin_elems(bin_range: &[Elem], bin_idx: u16) {
+        for (i, elem) in bin_range.iter().enumerate() {
+            assert!(elem.tag & TAG_EXCESS == 0);
+            assert_eq!(
+                (elem.tag & TAG_BIN_IDX) >> TAG_BIN_IDX.trailing_zeros(),
+                bin_idx as u32,
+                "{:?} at bin {} idx {}",
+                elem,
+                bin_idx,
+                i
+            );
+        }
+    }
+
+    fn check_bins(bins: &[Elem], b: u16, z: usize) {
+        assert_eq!(bins.len(), b as usize * z);
+        for i in 0..b {
+            let bin_range = &bins[i as usize * z..(i as usize + 1) * z];
+            check_bin_elems(bin_range, i);
+        }
+    }
+
     #[test]
     fn test_oht_build_ok() {
         let mut oht = Oht::new(4, 100);
         let elems = (0..100).map(|i| {
             let mut elem = Elem {
-                key: [0; 32],
-                val: [0; 256],
+                key: [0; KEY_SIZE],
+                val: [0; VAL_SIZE],
                 tag: 0,
             };
             (i as u32)
@@ -169,7 +244,8 @@ mod tests {
             elem
         });
         oht.build(elems, PRF_KEY, 1);
-        // TODO: Check elem exists
+        check_bins(&oht.bins1, 4, 100);
+        check_bins(&oht.bins2, 4, 100);
     }
 
     #[test]
@@ -177,8 +253,8 @@ mod tests {
         let mut oht = Oht::new(4, 1300);
         let elems = (0..5000).map(|i| {
             let mut elem = Elem {
-                key: [0; 32],
-                val: [0; 256],
+                key: [0; KEY_SIZE],
+                val: [0; VAL_SIZE],
                 tag: 0,
             };
             (i as u32)
@@ -191,6 +267,7 @@ mod tests {
             elem
         });
         oht.build(elems, PRF_KEY, 4);
-        // TODO: Check elem exists
+        check_bins(&oht.bins1, 4, 1300);
+        check_bins(&oht.bins2, 4, 1300);
     }
 }

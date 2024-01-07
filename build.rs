@@ -7,11 +7,9 @@ fn main() {
     let ffi_src = String::from_utf8(fs::read("src/obl/_ffi.rs").unwrap()).unwrap();
     let key_size: usize = env_usize("OHT_KEY_SIZE", 32);
     let val_size: usize = env_usize("OHT_VAL_SIZE", 256);
-    let ffi_src = ffi_src.replace("KEY_SIZE", &key_size.to_string());
-    let ffi_src = ffi_src.replace("VAL_SIZE", &val_size.to_string());
+    let ffi_src = ffi_src.replace("{ KEY_SIZE }", &key_size.to_string());
+    let ffi_src = ffi_src.replace("{ VAL_SIZE }", &val_size.to_string());
     fs::write("include/obl/ffi.rs", ffi_src).unwrap();
-    println!("cargo:rerun-if-env-changed=OHT_KEY_SIZE");
-    println!("cargo:rerun-if-env-changed=OHT_VAL_SIZE");
 
     let mut cc_build = cxx_build::bridge("include/obl/ffi.rs");
     #[cfg(feature = "avx2")]
@@ -21,10 +19,16 @@ fn main() {
     cc_build
         .cpp(true)
         .std("c++20")
+        .define("KEY_SIZE", Some(key_size.to_string().as_str()))
+        .define("VAL_SIZE", Some(val_size.to_string().as_str()))
         .file("src/obl/mod.cpp")
         .file("src/obl/par_obl_primitives.cpp")
+        .file("src/obl/oeq_arr.cpp")
         .compile("obl");
     println!("cargo:rerun-if-changed=src/obl");
+
+    println!("cargo:rerun-if-env-changed=OHT_KEY_SIZE");
+    println!("cargo:rerun-if-env-changed=OHT_VAL_SIZE");
 }
 
 fn env_usize(key: &str, default_val: usize) -> usize {
