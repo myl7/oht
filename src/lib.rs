@@ -6,9 +6,10 @@
 mod crypto;
 mod obl;
 
-pub use obl::tag::TAG_DUMMY;
-use obl::tag::*;
+pub use obl::tag;
+use obl::tag::{prelude::*, set_val_fit};
 pub use obl::{Elem, KEY_SIZE, VAL_SIZE};
+pub use tag::TAG_DUMMY;
 
 /// As a 2-tier hash table, `h1` is for the 1st tier and `h2` is for the 2nd tier.
 /// Every tier is some bins, which an index can be used to lookup the bin.
@@ -73,7 +74,7 @@ impl Oht {
         // Assign bin index
         for mut elem in elems {
             let bin_idx = crypto::prf_int(prf_key, &elem.key, self.b);
-            elem.tag = elem.tag | ((bin_idx as u32) << TAG_BIN_IDX.trailing_zeros());
+            elem.tag = set_val_fit(elem.tag, TAG_BIN_IDX, bin_idx as u32);
             bins.push(elem);
         }
 
@@ -82,7 +83,7 @@ impl Oht {
             let filler = Elem {
                 key: crypto::prf(prf_key, &i.to_le_bytes()),
                 val: [0; 256],
-                tag: ((i as u32) << TAG_BIN_IDX.trailing_zeros()) | TAG_FILLER,
+                tag: tag::set_val_fit(tag::init() | TAG_FILLER, TAG_BIN_IDX, i as u32),
             };
             (0..self.z).for_each(|_| {
                 bins.push(filler.clone());
@@ -105,7 +106,7 @@ impl Oht {
         let mut bin_elem_num = 0;
         let mut last_bin_idx = 0;
         for elem in bins.iter_mut() {
-            let bin_idx = (elem.tag & TAG_BIN_IDX) >> TAG_BIN_IDX.trailing_zeros();
+            let bin_idx = tag::get(elem.tag, TAG_BIN_IDX);
             bin_elem_num = obl::ochoose_u32(obl::oeq(last_bin_idx, bin_idx), bin_elem_num + 1, 1);
             last_bin_idx = bin_idx;
             elem.tag = obl::ochoose_u32(
@@ -121,11 +122,9 @@ impl Oht {
         obl::osort(
             &mut bins,
             |a, b| {
-                // Tag bit positions are considered
-                let a_id1 = ((a.tag & TAG_DUMMY) >> TAG_DUMMY.trailing_zeros() << 1)
-                    | ((a.tag & TAG_EXCESS) >> TAG_EXCESS.trailing_zeros());
-                let b_id1 = ((b.tag & TAG_DUMMY) >> TAG_DUMMY.trailing_zeros() << 1)
-                    | ((b.tag & TAG_EXCESS) >> TAG_EXCESS.trailing_zeros());
+                // Tag bit len is considered
+                let a_id1 = (tag::get(a.tag, TAG_DUMMY) << 1) | tag::get(a.tag, TAG_EXCESS);
+                let b_id1 = (tag::get(b.tag, TAG_DUMMY) << 1) | tag::get(b.tag, TAG_EXCESS);
                 let id1_ord = obl::olt(a_id1, b_id1);
                 let id1_eq = obl::oeq(a_id1, b_id1);
 
@@ -207,7 +206,7 @@ mod tests {
         for (i, elem) in bin_range.iter().enumerate() {
             assert!(elem.tag & TAG_EXCESS == 0);
             assert_eq!(
-                (elem.tag & TAG_BIN_IDX) >> TAG_BIN_IDX.trailing_zeros(),
+                tag::get(elem.tag, TAG_BIN_IDX),
                 bin_idx as u32,
                 "{:?} at bin {} idx {}",
                 elem,
