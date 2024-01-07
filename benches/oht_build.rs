@@ -1,3 +1,6 @@
+// Copyright (C) myl7
+// SPDX-License-Identifier: Apache-2.0
+
 //! `n` is the elem num. See [`oht`] for `b` and `z`.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};

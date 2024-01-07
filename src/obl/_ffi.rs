@@ -1,3 +1,6 @@
+// Copyright (C) myl7
+// SPDX-License-Identifier: Apache-2.0
+
 #[cxx::bridge]
 mod ffi {
     // Required to be put here because we will copy it in C++ (for obliviousness).
