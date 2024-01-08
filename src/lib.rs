@@ -86,7 +86,7 @@ impl Oht {
                 tag: tag::set_val_fit(tag::init() | TAG_FILLER, TAG_BIN_IDX, i as u32),
             };
             (0..self.z).for_each(|_| {
-                bins.push(filler.clone());
+                bins.push(filler);
             });
         });
 
