@@ -189,8 +189,9 @@ impl Oht {
             let key_eq = obl::oeq_key(elem.key, query.key);
             let elem_dummy = obl::ogt(elem.tag & TAG_DUMMY, 0);
             let elem_filler = obl::ogt(elem.tag & TAG_FILLER, 0);
-            found |= key_eq & !elem_dummy & !elem_filler;
-            val = obl::ochoose_val(found, val, *null_val);
+            let found_here = key_eq & !elem_dummy & !elem_filler;
+            found |= found_here;
+            val = obl::ochoose_val(found_here, elem.val, val);
         }
         (found, val)
     }
@@ -268,5 +269,58 @@ mod tests {
         oht.build(elems, PRF_KEY, 4);
         check_bins(&oht.bins1, 4, 1300);
         check_bins(&oht.bins2, 4, 1300);
+    }
+
+    #[test]
+    fn test_oht_build_then_lookup_ok() {
+        let mut oht = Oht::new(31, 17);
+        let elems: Vec<_> = (0..100)
+            .map(|i| {
+                let mut elem = Elem {
+                    key: [0; KEY_SIZE],
+                    val: [1; VAL_SIZE],
+                    tag: 0,
+                };
+                (i as u32)
+                    .to_le_bytes()
+                    .iter()
+                    .enumerate()
+                    .for_each(|(i, b)| {
+                        elem.key[i] = *b;
+                    });
+                elem
+            })
+            .collect();
+        oht.build(elems.clone(), PRF_KEY, 1);
+        let null_val = [0; VAL_SIZE];
+        [1, 14, 51, 4, 8, 10]
+            .map(|i| (i, elems[i].key))
+            .into_iter()
+            .for_each(|(i, key)| {
+                let (found, res_val) = oht.lookup(
+                    Elem {
+                        tag: 0,
+                        key,
+                        val: null_val,
+                    },
+                    PRF_KEY,
+                );
+                assert!(found);
+                assert_eq!(res_val, [1; VAL_SIZE], "key {}", i);
+            });
+        let mut key = [0; KEY_SIZE];
+        1919u32.to_le_bytes().iter().enumerate().for_each(|(i, b)| {
+            key[i] = *b;
+        });
+        let (found, res_val) = oht.lookup(
+            Elem {
+                tag: 0,
+                key,
+                val: null_val,
+            },
+            PRF_KEY,
+        );
+        assert!(!found);
+        assert_eq!(res_val, null_val);
     }
 }
