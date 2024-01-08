@@ -30,3 +30,4 @@ cxx-build = { version = "1.0.114", features = ["parallel"] }
 [dev-dependencies]
 criterion = "0.5.1"
 rand = { version = "0.8.5", features = ["std", "std_rng"] }
+serial_test = "3.0.0"

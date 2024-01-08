@@ -26,8 +26,10 @@ impl fmt::Debug for Elem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_ok() {
         let mut vec = vec![
             Elem {

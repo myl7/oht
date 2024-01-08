@@ -200,6 +200,7 @@ impl Oht {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     const PRF_KEY: &[u8; 32] = b"01234567890123456789012345678901";
 
@@ -226,6 +227,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_oht_build_ok() {
         let mut oht = Oht::new(4, 100);
         let elems = (0..100).map(|i| {
@@ -249,6 +251,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_oht_build_mt_ok() {
         let mut oht = Oht::new(4, 1300);
         let elems = (0..5000).map(|i| {
@@ -272,6 +275,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_oht_build_then_lookup_ok() {
         let mut oht = Oht::new(31, 17);
         let elems: Vec<_> = (0..100)
