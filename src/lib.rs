@@ -13,20 +13,24 @@ pub use tag::TAG_DUMMY;
 
 /// As a 2-tier hash table, `h1` is for the 1st tier and `h2` is for the 2nd tier.
 /// Every tier is some bins, which an index can be used to lookup the bin.
-/// See [`crate`] for `B` and `Z`.
+/// See [`crate`] for `b` and `z`.
 #[derive(Debug, Clone)]
-pub struct Oht<const B: u16, const Z: usize> {
+pub struct Oht {
     /// `$H_1$`. The 1st tier OHT. Built first.
     pub bins1: Vec<Elem>,
     /// `$H_2$`. The 2nd tier OHT. Built second.
     pub bins2: Vec<Elem>,
+    pub b: u16,
+    pub z: usize,
 }
 
-impl<const B: u16, const Z: usize> Oht<B, Z> {
-    pub fn new() -> Self {
+impl Oht {
+    pub fn new(b: u16, z: usize) -> Self {
         Oht {
-            bins1: Vec::with_capacity(B as usize * Z),
-            bins2: Vec::with_capacity(B as usize * Z),
+            bins1: Vec::with_capacity(b as usize * z),
+            bins2: Vec::with_capacity(b as usize * z),
+            b,
+            z,
         }
     }
 
@@ -48,14 +52,20 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
         let mut prf_key_buf = [&[0], prf_key].concat();
 
         prf_key_buf[0] = 1;
-        Self::build_pass(&mut self.bins1, &prf_key_buf, jobs, Some(&mut self.bins2));
+        Self::build_pass(
+            (self.b, self.z),
+            &mut self.bins1,
+            &prf_key_buf,
+            jobs,
+            Some(&mut self.bins2),
+        );
 
         for elem in self.bins2.iter_mut() {
             elem.tag = tag::unset(elem.tag, TAG_EXCESS);
         }
 
         prf_key_buf[0] = 2;
-        Self::build_pass(&mut self.bins2, &prf_key_buf, jobs, None);
+        Self::build_pass((self.b, self.z), &mut self.bins2, &prf_key_buf, jobs, None);
     }
 
     /// Build pass executed twice in one build.
@@ -63,6 +73,7 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
     /// Returns the bins and overflow pile.
     /// If `collect_overflow` is false, the overflow pile is always `None` (dropped), otherwise returned.
     pub fn build_pass(
+        (b, z): (u16, usize),
         bins: &mut Vec<Elem>,
         prf_key: &[u8],
         jobs: usize,
@@ -70,18 +81,18 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
     ) {
         // Assign bin index
         for elem in bins.iter_mut() {
-            let bin_idx = crypto::prf_int(prf_key, &elem.key, B);
+            let bin_idx = crypto::prf_int(prf_key, &elem.key, b);
             elem.tag = set_val_fit(elem.tag, TAG_BIN_IDX, bin_idx as u32);
         }
 
         // Add fillers
-        (0..B).for_each(|i| {
+        (0..b).for_each(|i| {
             let filler = Elem {
                 key: crypto::prf(prf_key, &i.to_le_bytes()),
                 val: [0; 256],
                 tag: tag::set_val_fit(tag::init() | TAG_FILLER, TAG_BIN_IDX, i as u32),
             };
-            (0..Z).for_each(|_| {
+            (0..z).for_each(|_| {
                 bins.push(filler);
             });
         });
@@ -106,7 +117,7 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
             bin_elem_num = obl::ochoose_u32(obl::oeq(last_bin_idx, bin_idx), bin_elem_num + 1, 1);
             last_bin_idx = bin_idx;
             elem.tag = obl::ochoose_u32(
-                obl::ogt(bin_elem_num, Z as u32),
+                obl::ogt(bin_elem_num, z as u32),
                 elem.tag | TAG_EXCESS,
                 elem.tag,
             );
@@ -136,9 +147,9 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
 
         // Separate bins and the overflow pile
         if let Some(overflow_pile) = overflow_pile {
-            overflow_pile.extend(bins.splice(B as usize * Z.., []));
+            overflow_pile.extend(bins.splice(b as usize * z.., []));
         } else {
-            bins.truncate(B as usize * Z);
+            bins.truncate(b as usize * z);
         }
         bins.shrink_to_fit();
     }
@@ -152,17 +163,19 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
         let key = &query.key;
         let null_val = &query.val;
         let mut prf_key_buf = [&[0], prf_key].concat();
+        let b = self.b;
+        let z = self.z;
 
         prf_key_buf[0] = 1;
-        let bins1_bin_idx = crypto::prf_int(&prf_key_buf, key, B);
-        let bins1_bin_start = bins1_bin_idx as usize * Z;
-        let bins1_range = &self.bins1[bins1_bin_start..bins1_bin_start + Z];
+        let bins1_bin_idx = crypto::prf_int(&prf_key_buf, key, b);
+        let bins1_bin_start = bins1_bin_idx as usize * z;
+        let bins1_range = &self.bins1[bins1_bin_start..bins1_bin_start + z];
         let (bins1_found, bins1_val) = self.lookup_bin(bins1_range, &query);
 
         prf_key_buf[0] = 2;
-        let bins2_bin_idx = crypto::prf_int(&prf_key_buf, key, B);
-        let bins2_bin_start = bins2_bin_idx as usize * Z;
-        let bins2_range = &self.bins2[bins2_bin_start..bins2_bin_start + Z];
+        let bins2_bin_idx = crypto::prf_int(&prf_key_buf, key, b);
+        let bins2_bin_start = bins2_bin_idx as usize * z;
+        let bins2_range = &self.bins2[bins2_bin_start..bins2_bin_start + z];
         let (bins2_found, bins2_val) = self.lookup_bin(bins2_range, &query);
 
         let found = bins1_found | bins2_found;
@@ -194,9 +207,13 @@ impl<const B: u16, const Z: usize> Oht<B, Z> {
     pub fn len(&self) -> usize {
         self.bins1.len() + self.bins2.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
-impl<const B: u16, const Z: usize> IntoIterator for Oht<B, Z> {
+impl IntoIterator for Oht {
     type Item = Elem;
     type IntoIter =
         std::iter::Chain<std::vec::IntoIter<Self::Item>, std::vec::IntoIter<Self::Item>>;
@@ -238,7 +255,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_oht_build_ok() {
-        let mut oht = Oht::<4, 100>::new();
+        let mut oht = Oht::new(4, 100);
         let elems: Vec<_> = (0..100)
             .map(|i| {
                 let mut elem = Elem {
@@ -265,7 +282,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_oht_build_mt_ok() {
-        let mut oht = Oht::<4, 1300>::new();
+        let mut oht = Oht::new(4, 1300);
         let elems: Vec<_> = (0..5000)
             .map(|i| {
                 let mut elem = Elem {
@@ -292,7 +309,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_oht_build_then_lookup_ok() {
-        let mut oht = Oht::<31, 17>::new();
+        let mut oht = Oht::new(31, 17);
         let elems: Vec<_> = (0..100)
             .map(|i| {
                 let mut elem = Elem {

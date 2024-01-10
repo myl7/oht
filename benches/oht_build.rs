@@ -28,16 +28,14 @@ pub fn bench(c: &mut Criterion) {
         thread_rng().fill_bytes(&mut elem.val);
         elem
     });
-    // const Z: usize = (5f64 * 3.27).ceil() as usize;
-    // const B: u16 = ((N as f64) / 3.27).ceil() as u16;
-    const B: u16 = 30582;
-    const Z: usize = 17;
+    let z: usize = (5f64 * 3.27).ceil() as usize;
+    let b: u16 = ((N as f64) / 3.27).ceil() as u16;
     c.bench_with_input(
-        BenchmarkId::new("oht build n=100k", format!("b={B} z={Z}")),
+        BenchmarkId::new("oht build n=100k", format!("b={b} z={z}")),
         &(),
         |bencher, &()| {
             bencher.iter(|| {
-                let mut oht = Oht::<B, Z>::new();
+                let mut oht = Oht::new(b, z);
                 oht.bins1.extend(elems.clone());
                 oht.build(PRF_KEY, 10);
             })
