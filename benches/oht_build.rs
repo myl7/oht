@@ -10,8 +10,8 @@ use rand::prelude::*;
 const PRF_KEY: &[u8; 32] = b"01234567890123456789012345678901";
 
 pub fn bench(c: &mut Criterion) {
-    let n = 100_000;
-    let elems = (0..n).map(|i| {
+    const N: usize = 100_000;
+    let elems = (0..N).map(|i| {
         let mut elem = Elem {
             key: [0; KEY_SIZE],
             val: [0; VAL_SIZE],
@@ -28,15 +28,18 @@ pub fn bench(c: &mut Criterion) {
         thread_rng().fill_bytes(&mut elem.val);
         elem
     });
-    let z = (5f64 * 3.27).ceil() as usize;
-    let b = ((n as f64) / 3.27).ceil() as u16;
+    // const Z: usize = (5f64 * 3.27).ceil() as usize;
+    // const B: u16 = ((N as f64) / 3.27).ceil() as u16;
+    const B: u16 = 30582;
+    const Z: usize = 17;
     c.bench_with_input(
-        BenchmarkId::new("oht build n=100k", format!("b={b} z={z}")),
-        &(b, z),
-        |bencher, &(b, z)| {
+        BenchmarkId::new("oht build n=100k", format!("b={B} z={Z}")),
+        &(),
+        |bencher, &()| {
             bencher.iter(|| {
-                let mut oht = Oht::new(b, z);
-                oht.build(elems.clone(), PRF_KEY, 10);
+                let mut oht = Oht::<B, Z>::new();
+                oht.bins1.extend(elems.clone());
+                oht.build(PRF_KEY, 10);
             })
         },
     );
