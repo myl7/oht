@@ -4,7 +4,7 @@
 //! We always use `b` for the bin number, `z` for the bin capacity
 
 mod crypto;
-mod obl;
+pub mod obl;
 
 pub use obl::tag;
 use obl::tag::{prelude::*, set_val_fit};

@@ -27,7 +27,7 @@ mod ffi {
         fn oeq_key(a: [u8; { KEY_SIZE }], b: [u8; { KEY_SIZE }]) -> bool;
         fn ochoose_u32(pred: bool, a: u32, b: u32) -> u32;
         fn ochoose_bool(pred: bool, a: bool, b: bool) -> bool;
-        fn ochoose_val(
+        pub fn ochoose_val(
             pred: bool,
             a: [u8; { VAL_SIZE }],
             b: [u8; { VAL_SIZE }],
