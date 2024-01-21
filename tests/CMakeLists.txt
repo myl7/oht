@@ -1,0 +1,25 @@
+include(CTest)
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(OpenSSL REQUIRED)
+
+target_compile_options(oht INTERFACE -mavx2)
+target_compile_definitions(
+  oht INTERFACE
+  OHT__SNOOPY__AVX2=1
+  OHT__OTH_OBL__OBLSORT_SINGLETHREAD=1
+)
+
+add_executable(
+  test_oht_build
+  test_oht_build.cpp
+  oht_crypto.cpp
+  snoopy_par.cpp
+)
+target_compile_options(test_oht_build PRIVATE -mavx2)
+target_link_libraries(
+  test_oht_build PRIVATE
+  oht
+  OpenSSL::Crypto
+)
+add_test(NAME test_oht_build COMMAND test_oht_build)
