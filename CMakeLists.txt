@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-project(oht LANGUAGES CXX)
+project(
+  oht
+  VERSION 0.1.1
+  DESCRIPTION "Oblivious 2-tier hash table C++ header-only library"
+  HOMEPAGE_URL "https://github.com/myl7/oht"
+  LANGUAGES CXX
+)
 
 add_library(oht INTERFACE)
 target_include_directories(oht INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
