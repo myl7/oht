@@ -36,4 +36,5 @@
 .idea
 
 # Build dir
-/build
+build
+cmake-build-*
