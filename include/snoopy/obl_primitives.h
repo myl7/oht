@@ -19,8 +19,10 @@
 #include <cstring>
 #include <cstdlib>
 
-#ifdef OHT__SNOOPY__AVX2
+#ifdef OHT_SNOOPY_AVX2
 #define USE_AVX2
+#else
+#undef USE_AVX2
 #endif
 
 #ifdef USE_AVX2
@@ -33,8 +35,8 @@
 
 namespace snoopy {
 
-#ifdef OHT__SNOOPY__CACHE_LINE_SIZE
-constexpr size_t CACHE_LINE_SIZE = OHT__SNOOPY__CACHE_LINE_SIZE;
+#ifdef OHT_SNOOPY_CACHE_LINE_SIZE
+constexpr size_t CACHE_LINE_SIZE = OHT_SNOOPY_CACHE_LINE_SIZE;
 #else
 constexpr size_t CACHE_LINE_SIZE = 64;
 #endif
