@@ -1,6 +1,12 @@
-// Copied from common/par_obl_primitives.h and merged with common/par_obl_primitives.cpp.
-// Modifications by myl7.
+// SPDX-License-Identifier: Apache-2.0
+// The original code is at the URL https://github.com/ucbrise/snoopy,
+// in the paths common/par_obl_primitives.h and common/par_obl_primitives.cpp (merged from them),
+// owned by UC Berkeley RISE (REAL-TIME INTELLIGENT SECURE EXPLAINABLE SYSTEMS) (GitHub orgname: ucbrise),
+// and licensed under the Apache License, Version 2.0.
+// The current code is modified by myl7, and redistributed under the same license. The modifications are:
+//
 // Update global variable names.
+// Fix type casts.
 
 #pragma once
 
@@ -71,7 +77,7 @@ static void wait_for_threads(int num_threads) {
 }  // namespace pos
 
 static std::pair<int, int> get_cutoffs_for_thread(int thread_id, int total, int n_threads) {
-  int chunks = floor(total / n_threads);
+  int chunks = floor((double)(total) / n_threads);
   int start = chunks * thread_id;
   int end = start + chunks;
   if (thread_id + 1 == n_threads) {
@@ -85,7 +91,7 @@ namespace detail {
 template <typename T, typename Comparator>
 inline void imperative_o_sort_cmp(T *arr, Comparator cmp, int start, int end) {
   uint32_t i;
-  for (i = (uint32_t)start; i < (uint32_t)end; i++) {
+  for (i = (uint32_t)(start); i < (uint32_t)(end); i++) {
     uint32_t ij = i ^ pos::state.j;
     if (ij > i) {
       if ((i & pos::state.k) == 0) {

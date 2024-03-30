@@ -1,7 +1,13 @@
-// Copied from common/obl_primitives.h.
-// Modifications by myl7.
+// SPDX-License-Identifier: Apache-2.0
+// The original code is at the URL https://github.com/ucbrise/snoopy, in the path common/obl_primitives.h,
+// owned by UC Berkeley RISE (REAL-TIME INTELLIGENT SECURE EXPLAINABLE SYSTEMS) (GitHub orgname: ucbrise),
+// and licensed under the Apache License, Version 2.0.
+// The current code is modified by myl7, and redistributed under the same license. The modifications are:
+//
 // Fix implicit type casts, remove unused variables, wrap namespaces, and fix SIMD include.
 // No major logicial changes.
+//
+// The original file header is kept below:
 
 /*
  * Modifications Copyright 2020 by Secure XGBoost Contributors
