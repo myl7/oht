@@ -20,12 +20,6 @@
 #include <cstdlib>
 
 #ifdef OHT_SNOOPY_AVX2
-#define USE_AVX2
-#else
-#undef USE_AVX2
-#endif
-
-#ifdef USE_AVX2
 // #include <intrinsics/immintrin.h>
 #include <immintrin.h>
 #endif
@@ -240,7 +234,7 @@ inline void ObliviousArrayAccessBytes(void *dst, const void *array, size_t nbyte
   }
 }
 
-#ifdef USE_AVX2
+#ifdef OHT_SNOOPY_AVX2
 /**
  *  Vectorized oblivious array operation helpers
  */
@@ -634,7 +628,7 @@ inline void ObliviousAssignHelper(bool pred, T t_val, T f_val, T *out) {
   *out = static_cast<uint8_t>(result);
 }
 
-#ifdef USE_AVX2
+#ifdef OHT_SNOOPY_AVX2
 // Obliviously assigns 32 bytes starting from the address of (cond) ? t_val : f_val into out
 template <typename T>
 inline void ObliviousAssignHelper32(bool cond, T &t_val, T &f_val, T *out) {
@@ -662,7 +656,7 @@ inline void ObliviousBytesAssign(bool pred, size_t nbytes, const void *t_val, co
   char *t = (char *)t_val;
   char *f = (char *)f_val;
 
-#ifdef USE_AVX2
+#ifdef OHT_SNOOPY_AVX2
   // Obliviously assign 32 bytes at a time
   size_t num_32_iter = bytes / 32;
   for (size_t i = 0; i < num_32_iter; i++) {
@@ -721,7 +715,3 @@ inline void ObliviousBytesAssign(bool pred, size_t nbytes, const void *t_val, co
 }
 
 }  // namespace snoopy::obl
-
-#ifdef USE_AVX2
-#undef USE_AVX2
-#endif
