@@ -5,8 +5,8 @@ ColumnLimit: 120
 AllowShortFunctionsOnASingleLine: Empty
 AlignAfterOpenBracket: DontAlign
 ContinuationIndentWidth: 2
-SortIncludes: Never
-# Use the below one up to clang 12.
-# VSCode reformats with a remote clang-format so the newer value is kept as the default.
-# SortIncludes: false
+SortIncludes: false
+# Use the below one for clang-format >= 13.
+# For Ubuntu 20.04 Focal, so far clang-format == 10.
+# SortIncludes: Never
 AlignEscapedNewlines: DontAlign
