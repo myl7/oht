@@ -1,0 +1,12 @@
+enclave {
+  from "openenclave/edl/logging.edl" import *;
+  from "openenclave/edl/syscall.edl" import *;
+  from "platform.edl" import *;
+
+  trusted {
+    public size_t oht_lookup([in, count=buf_size] const uint8_t *buf, size_t buf_size);
+    public void oht_build([in, out, count=buf_size] uint8_t *buf, size_t buf_size);
+  };
+
+  untrusted {};
+};
