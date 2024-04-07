@@ -14,7 +14,7 @@ add_executable(
   test_oht_build
   test_oht_build.cpp
   oht_crypto_impl.cpp
-  snoopy_par_obl_primitives_impl.cpp
+  oht_snoopy_impl.cpp
 )
 target_compile_options(test_oht_build PRIVATE -mavx2)
 target_link_libraries(

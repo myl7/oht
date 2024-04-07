@@ -1,4 +1,4 @@
-#include "snoopy/par_obl_primitives.h"
+#include <snoopy/par_obl_primitives.h>
 
 namespace snoopy::decl {
 
