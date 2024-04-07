@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
+# For Ubuntu 20.04 Focal so far, which is the latest one officially supported by openenclave so far
+cmake_minimum_required(VERSION 3.16)
+
 # The original code is at the URL https://github.com/openenclave/openenclave,
 # in the path samples/helloworld/CMakeLists.txt,
 # owned by Open Enclave SDK contributors, and licensed under the MIT License.
@@ -38,42 +41,35 @@
 # The current code is used below as some code blocks.
 # The code blocks are marked by ## oecode.
 
-add_subdirectory(lib/oht)
-
-add_executable(
-  oht-enclave
-  api/oht_t.c
-  src/api.cpp
-  src/oht_crypto_impl.cpp
-  src/oht_snoopy_impl.cpp
-)
-target_compile_definitions(oht-enclave PUBLIC OE_API_VERSION=2)
-target_include_directories(oht-enclave PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(oht-enclave PUBLIC -mavx2)
-target_compile_definitions(
-  oht-enclave PUBLIC
-  # OHT_SNOOPY_AVX2=1
-  OHT_OBLSORT_SINGLETHREAD=1
-)
-
 ## oecode
 if (LVI_MITIGATION MATCHES ControlFlow)
-  # Helper to enable compiler options for LVI mitigation.
-  apply_lvi_mitigation(enclave)
-  # Link against LVI-mitigated libraries.
-  target_link_libraries(
-    oht-enclave
-    openenclave::oeenclave-lvi-cfg
-    openenclave::oecrypto${OE_CRYPTO_LIB}-lvi-cfg
-    openenclave::oelibcxx-lvi-cfg
-  )
+  # Configure the cmake to use customized compilation toolchain.
+  # This package has to be added before `project()`.
+  find_package(OpenEnclave-LVI-Mitigation CONFIG REQUIRED)
 else ()
-  target_link_libraries(
-    oht-enclave PRIVATE
-    openenclave::oeenclave
-    openenclave::oecrypto${OE_CRYPTO_LIB}
-    openenclave::oelibcxx
-  )
+  # Setting the cmake compiler when LVI mitigation is not enabled. If the CC
+  # environment variable has been specified or the if CMAKE_C_COMPILER cmake
+  # variable has been passed to cmake, use the C compiler that has been specified.
+  # Otherwise, prefer clang. Same for C++ compiler. This must be done before
+  # the `project` command.
+  if (UNIX)
+    if (NOT DEFINED ENV{CC} AND NOT DEFINED CMAKE_C_COMPILER)
+      find_program(CMAKE_C_COMPILER clang-11 clang-10 clang)
+    endif ()
+    if (NOT DEFINED ENV{CXX} AND NOT DEFINED CMAKE_CXX_COMPILER)
+      find_program(CMAKE_CXX_COMPILER clang++-11 clang++-10 clang++)
+    endif ()
+  endif ()
 endif ()
 
-target_link_libraries(oht-enclave PRIVATE oht)
+project(oht-example-oht LANGUAGES CXX C)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
+## oecode
+set(OE_CRYPTO_LIB openssl_3 CACHE STRING "Crypto library used by enclaves")
+
+find_package(OpenEnclave REQUIRED)
+
+add_subdirectory(enclave)
+add_subdirectory(host)
