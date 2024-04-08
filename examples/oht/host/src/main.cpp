@@ -25,7 +25,8 @@ int main() {
 
   oe_enclave_t *enclave;
   int res;
-  res = oe_create_oht_enclave(kEnclavePath.c_str(), OE_ENCLAVE_TYPE_AUTO, OE_ENCLAVE_FLAG_DEBUG, nullptr, 0, &enclave);
+  res = oe_create_oht_enclave(
+    kEnclavePath.c_str(), OE_ENCLAVE_TYPE_AUTO, OE_ENCLAVE_FLAG_DEBUG | OE_ENCLAVE_FLAG_SIMULATE, nullptr, 0, &enclave);
   assert((void("oe_create_oht_enclave failed"), res == 0));
 
   // TODO: Impl
